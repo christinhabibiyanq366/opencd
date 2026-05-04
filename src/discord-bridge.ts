@@ -78,11 +78,12 @@ export class DiscordBridge {
       return;
     }
 
-    if (!message.mentions.has(this.client.user.id)) return;
+    const inThread = message.channel.isThread();
+    if (!inThread && !message.mentions.has(this.client.user.id)) return;
 
     const prompt = stripBotMention(message.content, this.client.user.id);
     if (!prompt) {
-      await message.reply("请在 @ 我之后输入你的问题。");
+      if (!inThread) await message.reply("请在 @ 我之后输入你的问题。");
       return;
     }
 
