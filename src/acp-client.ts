@@ -72,6 +72,14 @@ export class AcpClient {
       // Keep stderr drained; ACP data is line-delimited JSON on stdout.
     });
 
+    this.process.on("error", (err) => {
+      for (const [, pending] of this.pending) {
+        clearTimeout(pending.timer);
+        pending.reject(err);
+      }
+      this.pending.clear();
+    });
+
     this.process.on("exit", () => {
       for (const [, pending] of this.pending) {
         clearTimeout(pending.timer);
