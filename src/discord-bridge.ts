@@ -12,6 +12,22 @@ import { config } from "./config.js";
 
 const DISCORD_MESSAGE_LIMIT = 2000;
 
+const MOOD_FACES = ["😊", "😎", "🫡", "🤓", "😏", "✌️", "💪", "🦾"];
+
+async function setReaction(message: Message, emoji: string, current: string): Promise<string> {
+  await message.react(emoji).catch(() => {});
+  if (current && current !== emoji) {
+    await message.reactions.cache.get(current)?.users.remove(message.client.user?.id).catch(() => {});
+  }
+  return emoji;
+}
+
+async function clearReaction(message: Message, current: string): Promise<void> {
+  if (current) {
+    await message.reactions.cache.get(current)?.users.remove(message.client.user?.id).catch(() => {});
+  }
+}
+
 function splitMessage(content: string, limit = DISCORD_MESSAGE_LIMIT): string[] {
   if (content.length <= limit) return [content];
   const chunks: string[] = [];
@@ -128,10 +144,19 @@ export class DiscordBridge {
 
     console.log(`[discord→kiro] thread=${thread.id} user=${message.author.tag} prompt=${prompt}`);
 
+    // ⏳ queued
+    let reaction = await setReaction(message, "⏳", "");
+
+    // Stall timers: 🥱 at 30s, 😨 at 60s
+    const stallSoft = setTimeout(async () => { reaction = await setReaction(message, "🥱", reaction); }, 30_000);
+    const stallHard = setTimeout(async () => { reaction = await setReaction(message, "😨", reaction); }, 60_000);
+
     let session: ActiveSession;
     try {
       session = await this.getOrCreateSession(thread.id);
     } catch (error) {
+      clearTimeout(stallSoft); clearTimeout(stallHard);
+      await setReaction(message, "❌", reaction);
       const text = error instanceof Error ? error.message : String(error);
       await thread.send(`⚠️ opencd 无法启动 Kiro：${text}`);
       return;
@@ -142,10 +167,16 @@ export class DiscordBridge {
 
     let latestText = "";
     let editPending = false;
+    let thinkingSet = false;
 
     const editLoop = setInterval(async () => {
       if (!editPending) return;
       editPending = false;
+      // 🤔 thinking — switch from ⏳ on first chunk
+      if (!thinkingSet) {
+        thinkingSet = true;
+        reaction = await setReaction(message, "🤔", reaction);
+      }
       const display = latestText.length > DISCORD_MESSAGE_LIMIT - 100
         ? `…${latestText.slice(-(DISCORD_MESSAGE_LIMIT - 100))}`
         : latestText;
@@ -159,19 +190,27 @@ export class DiscordBridge {
       });
 
       clearInterval(editLoop);
+      clearTimeout(stallSoft); clearTimeout(stallHard);
       console.log(`[kiro→discord] thread=${thread.id} reply=${result.slice(0, 200)}${result.length > 200 ? "…" : ""}`);
 
+      // ✅ done + random mood face
+      await setReaction(message, "✅", reaction);
+      const face = MOOD_FACES[Math.floor(Math.random() * MOOD_FACES.length)];
+      await message.react(face).catch(() => {});
+
       const chunks = splitMessage(result);
-      // Edit placeholder with first chunk, send the rest as new messages
       await placeholder.edit(chunks[0] ?? result).catch(() => {});
       for (const chunk of chunks.slice(1)) {
         await thread.send(chunk);
       }
+
     } catch (error) {
       clearInterval(editLoop);
+      clearTimeout(stallSoft); clearTimeout(stallHard);
       // Session broken — remove it so next message creates a fresh one
       this.sessions.delete(thread.id);
       await session.acp.close().catch(() => {});
+      await setReaction(message, "❌", reaction);
       const text = error instanceof Error ? error.message : String(error);
       await placeholder.edit(`⚠️ opencd 调用 Kiro 失败：${text}`).catch(() => {});
     }
