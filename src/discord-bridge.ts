@@ -137,19 +137,43 @@ export class DiscordBridge {
       return;
     }
 
+    // Send placeholder immediately, then stream edits as kiro replies
+    const placeholder = await thread.send("…");
+
+    let latestText = "";
+    let editPending = false;
+
+    const editLoop = setInterval(async () => {
+      if (!editPending) return;
+      editPending = false;
+      const display = latestText.length > DISCORD_MESSAGE_LIMIT - 100
+        ? `…${latestText.slice(-(DISCORD_MESSAGE_LIMIT - 100))}`
+        : latestText;
+      await placeholder.edit(display).catch(() => {});
+    }, 1500);
+
     try {
-      const result = await session.acp.prompt(session.sessionId, fullPrompt);
+      const result = await session.acp.prompt(session.sessionId, fullPrompt, (accumulated) => {
+        latestText = accumulated;
+        editPending = true;
+      });
+
+      clearInterval(editLoop);
       console.log(`[kiro→discord] thread=${thread.id} reply=${result.slice(0, 200)}${result.length > 200 ? "…" : ""}`);
+
       const chunks = splitMessage(result);
-      for (const chunk of chunks) {
+      // Edit placeholder with first chunk, send the rest as new messages
+      await placeholder.edit(chunks[0] ?? result).catch(() => {});
+      for (const chunk of chunks.slice(1)) {
         await thread.send(chunk);
       }
     } catch (error) {
+      clearInterval(editLoop);
       // Session broken — remove it so next message creates a fresh one
       this.sessions.delete(thread.id);
       await session.acp.close().catch(() => {});
       const text = error instanceof Error ? error.message : String(error);
-      await thread.send(`⚠️ opencd 调用 Kiro 失败：${text}`);
+      await placeholder.edit(`⚠️ opencd 调用 Kiro 失败：${text}`).catch(() => {});
     }
   }
 }

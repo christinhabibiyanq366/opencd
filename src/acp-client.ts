@@ -121,10 +121,14 @@ export class AcpClient {
     return sessionId;
   }
 
-  async prompt(sessionId: string, prompt: string): Promise<string> {
+  async prompt(sessionId: string, prompt: string, onChunk?: (text: string) => void): Promise<string> {
     let text = "";
     this.onNotification = (msg) => {
-      text += extractChunkText(msg);
+      const chunk = extractChunkText(msg);
+      if (chunk) {
+        text += chunk;
+        onChunk?.(text);
+      }
     };
     const response = await this.request(
       "session/prompt",
