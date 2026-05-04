@@ -1,4 +1,11 @@
-import { Client, GatewayIntentBits, type Message } from "discord.js";
+import {
+  Client,
+  GatewayIntentBits,
+  ThreadAutoArchiveDuration,
+  type Message,
+  type TextChannel,
+  type ThreadChannel,
+} from "discord.js";
 
 import { AcpClient } from "./acp-client.js";
 import { config } from "./config.js";
@@ -24,6 +31,22 @@ function stripBotMention(content: string, botId: string): string {
   return content.replace(new RegExp(`<@!?${botId}>`, "g"), "").trim();
 }
 
+function threadName(prompt: string): string {
+  const name = prompt.slice(0, 40);
+  return name.length < prompt.length ? `${name}...` : name;
+}
+
+async function getOrCreateThread(message: Message, prompt: string): Promise<ThreadChannel> {
+  if (message.channel.isThread()) {
+    return message.channel as ThreadChannel;
+  }
+  return (message.channel as TextChannel).threads.create({
+    name: threadName(prompt),
+    autoArchiveDuration: ThreadAutoArchiveDuration.OneDay,
+    startMessage: message,
+  });
+}
+
 export class DiscordBridge {
   private readonly client = new Client({
     intents: [
@@ -47,14 +70,25 @@ export class DiscordBridge {
 
   private async onMessage(message: Message): Promise<void> {
     if (message.author.bot || !this.client.user) return;
-    if (config.allowedChannels.size > 0 && !config.allowedChannels.has(message.channelId)) {
+
+    const channelId = message.channel.isThread()
+      ? (message.channel as ThreadChannel).parentId ?? message.channelId
+      : message.channelId;
+    if (config.allowedChannels.size > 0 && !config.allowedChannels.has(channelId)) {
       return;
     }
+
     if (!message.mentions.has(this.client.user.id)) return;
 
     const prompt = stripBotMention(message.content, this.client.user.id);
     if (!prompt) {
       await message.reply("请在 @ 我之后输入你的问题。");
+      return;
+    }
+
+    const thread = await getOrCreateThread(message, prompt).catch(() => null);
+    if (!thread) {
+      await message.reply("⚠️ 无法创建 thread，请检查 Bot 权限。");
       return;
     }
 
@@ -64,7 +98,8 @@ export class DiscordBridge {
       sender_name: message.author.username,
       display_name: message.member?.displayName ?? message.author.displayName,
       channel: "discord",
-      channel_id: message.channelId,
+      channel_id: channelId,
+      thread_id: thread.id,
       is_bot: false,
     };
     const fullPrompt = `<sender_context>\n${JSON.stringify(senderContext)}\n</sender_context>\n\n${prompt}`;
@@ -77,11 +112,11 @@ export class DiscordBridge {
       const result = await acp.prompt(sessionId, fullPrompt);
       const chunks = splitMessage(result);
       for (const chunk of chunks) {
-        await message.reply(chunk);
+        await thread.send(chunk);
       }
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
-      await message.reply(`⚠️ opencd 调用 Kiro 失败：${text}`);
+      await thread.send(`⚠️ opencd 调用 Kiro 失败：${text}`);
     } finally {
       await acp.close();
     }
