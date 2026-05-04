@@ -47,6 +47,11 @@ async function getOrCreateThread(message: Message, prompt: string): Promise<Thre
   });
 }
 
+interface ActiveSession {
+  acp: AcpClient;
+  sessionId: string;
+}
+
 export class DiscordBridge {
   private readonly client = new Client({
     intents: [
@@ -55,6 +60,9 @@ export class DiscordBridge {
       GatewayIntentBits.MessageContent,
     ],
   });
+
+  // thread ID → active kiro session (persists across messages)
+  private readonly sessions = new Map<string, ActiveSession>();
 
   async start(): Promise<void> {
     this.client.once("ready", () => {
@@ -66,6 +74,19 @@ export class DiscordBridge {
     });
 
     await this.client.login(config.discordToken);
+  }
+
+  private async getOrCreateSession(threadId: string): Promise<ActiveSession> {
+    const existing = this.sessions.get(threadId);
+    if (existing) return existing;
+
+    const acp = new AcpClient(config.kiroCommand, config.kiroArgs, config.kiroWorkdir);
+    await acp.start();
+    await acp.initialize();
+    const sessionId = await acp.createSession(config.kiroWorkdir);
+    const session = { acp, sessionId };
+    this.sessions.set(threadId, session);
+    return session;
   }
 
   private async onMessage(message: Message): Promise<void> {
@@ -105,21 +126,27 @@ export class DiscordBridge {
     };
     const fullPrompt = `<sender_context>\n${JSON.stringify(senderContext)}\n</sender_context>\n\n${prompt}`;
 
-    const acp = new AcpClient(config.kiroCommand, config.kiroArgs, config.kiroWorkdir);
+    let session: ActiveSession;
     try {
-      await acp.start();
-      await acp.initialize();
-      const sessionId = await acp.createSession(config.kiroWorkdir);
-      const result = await acp.prompt(sessionId, fullPrompt);
+      session = await this.getOrCreateSession(thread.id);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error);
+      await thread.send(`⚠️ opencd 无法启动 Kiro：${text}`);
+      return;
+    }
+
+    try {
+      const result = await session.acp.prompt(session.sessionId, fullPrompt);
       const chunks = splitMessage(result);
       for (const chunk of chunks) {
         await thread.send(chunk);
       }
     } catch (error) {
+      // Session broken — remove it so next message creates a fresh one
+      this.sessions.delete(thread.id);
+      await session.acp.close().catch(() => {});
       const text = error instanceof Error ? error.message : String(error);
       await thread.send(`⚠️ opencd 调用 Kiro 失败：${text}`);
-    } finally {
-      await acp.close();
     }
   }
 }
