@@ -126,6 +126,8 @@ export class DiscordBridge {
     };
     const fullPrompt = `<sender_context>\n${JSON.stringify(senderContext)}\n</sender_context>\n\n${prompt}`;
 
+    console.log(`[discord→kiro] thread=${thread.id} user=${message.author.tag} prompt=${prompt}`);
+
     let session: ActiveSession;
     try {
       session = await this.getOrCreateSession(thread.id);
@@ -137,6 +139,7 @@ export class DiscordBridge {
 
     try {
       const result = await session.acp.prompt(session.sessionId, fullPrompt);
+      console.log(`[kiro→discord] thread=${thread.id} reply=${result.slice(0, 200)}${result.length > 200 ? "…" : ""}`);
       const chunks = splitMessage(result);
       for (const chunk of chunks) {
         await thread.send(chunk);
