@@ -13,6 +13,7 @@
   "type": "module",
   "private": true,
   "main": "dist/index.js",
+  "bin": { "opencd": "dist/index.js" },
   "files": ["dist", "README.md"],
   "dependencies": {
     "discord.js": "^14.26.4",
