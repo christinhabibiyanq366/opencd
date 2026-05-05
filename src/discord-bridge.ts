@@ -94,14 +94,19 @@ export class DiscordBridge {
 
   private async getOrCreateSession(threadId: string): Promise<ActiveSession> {
     const existing = this.sessions.get(threadId);
-    if (existing) return existing;
+    if (existing) {
+      console.log(`[session] reusing sessionId=${existing.sessionId} for thread=${threadId}`);
+      return existing;
+    }
 
+    console.log(`[session] creating new ACP session for thread=${threadId}`);
     const acp = new AcpClient(config.kiroCommand, config.kiroArgs, config.kiroWorkdir);
     await acp.start();
     await acp.initialize();
     const sessionId = await acp.createSession(config.kiroWorkdir);
     const session = { acp, sessionId };
     this.sessions.set(threadId, session);
+    console.log(`[session] session ready sessionId=${sessionId} thread=${threadId}`);
     return session;
   }
 

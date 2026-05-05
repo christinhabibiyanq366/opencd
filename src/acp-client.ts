@@ -63,16 +63,21 @@ export class AcpClient {
   ) {}
 
   async start(): Promise<void> {
+    console.log(`[acp] spawning: ${this.command} ${this.args.join(" ")} (cwd=${this.cwd})`);
     this.process = spawn(this.command, this.args, {
       cwd: this.cwd,
       stdio: ["pipe", "pipe", "pipe"],
     });
+    console.log(`[acp] pid=${this.process.pid}`);
 
-    this.process.stderr.on("data", () => {
-      // Keep stderr drained; ACP data is line-delimited JSON on stdout.
+    this.process.stderr.on("data", (chunk: Buffer) => {
+      for (const line of chunk.toString().split("\n")) {
+        if (line.trim()) console.error(`[kiro stderr] ${line}`);
+      }
     });
 
     this.process.on("error", (err) => {
+      console.error(`[acp] process error: ${err.message}`);
       for (const [, pending] of this.pending) {
         clearTimeout(pending.timer);
         pending.reject(err);
@@ -80,7 +85,8 @@ export class AcpClient {
       this.pending.clear();
     });
 
-    this.process.on("exit", () => {
+    this.process.on("exit", (code, signal) => {
+      console.warn(`[acp] process exited code=${code} signal=${signal}`);
       for (const [, pending] of this.pending) {
         clearTimeout(pending.timer);
         pending.reject(new Error("ACP process exited"));
@@ -94,6 +100,7 @@ export class AcpClient {
       try {
         msg = JSON.parse(line) as JsonRpcMessage;
       } catch {
+        console.warn(`[acp] non-JSON stdout: ${line}`);
         return;
       }
       await this.handleMessage(msg);
@@ -107,26 +114,34 @@ export class AcpClient {
   }
 
   async initialize(): Promise<void> {
+    console.log("[acp] → initialize");
     await this.request("initialize", {
       protocolVersion: 1,
       clientCapabilities: {},
       clientInfo: { name: "opencd", version: "0.1.0" },
     });
+    console.log("[acp] ← initialize ok");
   }
 
   async createSession(cwd: string): Promise<string> {
+    console.log(`[acp] → session/new cwd=${cwd}`);
     const response = await this.request("session/new", { cwd, mcpServers: [] }, 120_000);
     const sessionId = (response.result as { sessionId?: string } | undefined)?.sessionId;
     if (!sessionId) throw new Error("ACP session/new did not return sessionId");
+    console.log(`[acp] ← session/new sessionId=${sessionId}`);
     return sessionId;
   }
 
   async prompt(sessionId: string, prompt: string, onChunk?: (text: string) => void): Promise<string> {
+    console.log(`[acp] → session/prompt sessionId=${sessionId} promptLen=${prompt.length}`);
     let text = "";
+    let chunkCount = 0;
     this.onNotification = (msg) => {
       const chunk = extractChunkText(msg);
       if (chunk) {
         text += chunk;
+        chunkCount++;
+        if (chunkCount === 1) console.log("[acp] first chunk received");
         onChunk?.(text);
       }
     };
@@ -139,6 +154,7 @@ export class AcpClient {
       600_000,
     );
     this.onNotification = undefined;
+    console.log(`[acp] ← session/prompt done chunks=${chunkCount} totalLen=${text.length}`);
     if (text.trim()) return text.trim();
     const fallback = collectText(response.result).join("").trim();
     return fallback || "(no response)";
@@ -147,6 +163,7 @@ export class AcpClient {
   private async handleMessage(msg: JsonRpcMessage): Promise<void> {
     if (msg.method === "session/request_permission" && typeof msg.id === "number") {
       const optionId = pickPermissionOption(msg.params?.options);
+      console.log(`[acp] permission request id=${msg.id} → optionId=${optionId ?? "cancelled"}`);
       const result = optionId
         ? { outcome: { outcome: "selected", optionId } }
         : { outcome: { outcome: "cancelled" } };
