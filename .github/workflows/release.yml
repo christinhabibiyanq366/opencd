@@ -35,13 +35,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          BETA_COUNT=$(gh release list --repo ${{ github.repository }} --limit 100 --json tagName \
+          MAX_BETA=$(gh release list --repo ${{ github.repository }} --limit 100 --json tagName \
             | node -e "
                 const releases = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-                const count = releases.filter(r => r.tagName.startsWith('v${VERSION}-beta.')).length;
-                console.log(count);
+                const nums = releases
+                  .map(r => r.tagName.match(/^v\${VERSION}-beta\.(\d+)$/))
+                  .filter(Boolean)
+                  .map(m => parseInt(m[1], 10));
+                console.log(nums.length ? Math.max(...nums) : 0);
               ")
-          NEXT_BETA=$((BETA_COUNT + 1))
+          NEXT_BETA=$((MAX_BETA + 1))
           TAG="v${VERSION}-beta.${NEXT_BETA}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
