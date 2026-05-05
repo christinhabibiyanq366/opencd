@@ -22,21 +22,29 @@ This mirrors a single end-to-end route from `openabdev/openab` (Discord adapter 
 
 ## Installation
 
-Download the latest `.tgz` from [Releases](https://github.com/christinhabibiyanq366/opencd/releases/latest), then:
+**第一步：创建 `.env` 文件**（必须，否则启动报错）
 
 ```bash
-# 全局安装（推荐）
-npm install -g ./opencd-0.1.0.tgz
-opencd
-
-# 或者用 npx 直接运行（无需全局安装）
-npx ./opencd-0.1.0.tgz
-
-# 也可以直接用 Release URL
-npx https://github.com/christinhabibiyanq366/opencd/releases/download/v0.1.0-beta.4/opencd-0.1.0.tgz
+cat > .env << 'EOF'
+DISCORD_BOT_TOKEN=你的token
+# 可选：
+# DISCORD_ALLOWED_CHANNELS=频道ID1,频道ID2
+# KIRO_WORKDIR=/your/working/dir
+EOF
 ```
 
-运行前需要在当前目录创建 `.env` 文件，参考 [Environment](#environment) 章节。
+**第二步：安装并运行**
+
+```bash
+# 用 npx 直接运行（无需全局安装，推荐）
+npx https://github.com/christinhabibiyanq366/opencd/releases/download/v0.1.0-beta.4/opencd-0.1.0.tgz
+
+# 或下载 .tgz 后全局安装
+npm install -g ./opencd-0.1.0.tgz
+opencd
+```
+
+完整环境变量说明见 [Environment](#environment) 章节。
 
 ## Quick start
 
