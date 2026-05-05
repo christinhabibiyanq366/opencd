@@ -37,7 +37,7 @@ EOF
 
 ```bash
 # 用 npx 直接运行（无需全局安装，推荐）
-npx https://github.com/christinhabibiyanq366/opencd/releases/download/v0.1.0-beta.1/opencd-0.1.0.tgz
+npx https://github.com/christinhabibiyanq366/opencd/releases/download/v0.1.0-beta.5/opencd-0.1.0.tgz
 
 # 或下载 .tgz 后全局安装
 npm install -g ./opencd-0.1.0.tgz
