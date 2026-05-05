@@ -20,6 +20,20 @@ This mirrors a single end-to-end route from `openabdev/openab` (Discord adapter 
 - `kiro-cli` installed and already authenticated
 - A Discord bot token with Message Content intent enabled
 
+## Installation
+
+Download the latest `.tgz` from [Releases](https://github.com/christinhabibiyanq366/opencd/releases/latest) and install:
+
+```bash
+npm install ./opencd-<version>.tgz
+```
+
+Or install directly from the release URL:
+
+```bash
+npm install https://github.com/christinhabibiyanq366/opencd/releases/download/<tag>/opencd-<version>.tgz
+```
+
 ## Quick start
 
 ```bash
