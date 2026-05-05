@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -33,8 +35,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-
-          # 查找当前版本已有多少个 beta release，编号 +1
           BETA_COUNT=$(gh release list --repo ${{ github.repository }} --limit 100 --json tagName \
             | node -e "
                 const releases = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
@@ -43,18 +43,33 @@ jobs:
               ")
           NEXT_BETA=$((BETA_COUNT + 1))
           TAG="v${VERSION}-beta.${NEXT_BETA}"
-
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "prerelease=true" >> $GITHUB_OUTPUT
 
-          # 如果版本号本身不含 beta/alpha/rc，则稳定版用干净 tag
-          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Tag will be: ${TAG} (pre-release)"
-          fi
+      - name: Update README version
+        run: |
+          TAG=${{ steps.meta.outputs.tag }}
+          VERSION=${{ steps.meta.outputs.version }}
+          # 替换 release download URL 里的 tag 和文件名
+          sed -i "s|releases/download/v[^/]*/opencd-[0-9][^.]*\.[^t]*tgz|releases/download/${TAG}/opencd-${VERSION}.tgz|g" README.md
+          # 替换本地文件引用
+          sed -i "s|npm install -g \./opencd-[0-9][^ ]*\.tgz|npm install -g ./opencd-${VERSION}.tgz|g" README.md
+          sed -i "s|npx \./opencd-[0-9][^ ]*\.tgz|npx ./opencd-${VERSION}.tgz|g" README.md
 
       - name: Pack
         run: npm pack
+
+      - name: Commit updated README
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if git diff --cached --quiet; then
+            echo "README unchanged, skipping commit"
+          else
+            git commit -m "chore: update README install URL to ${{ steps.meta.outputs.tag }} [skip ci]"
+            git push
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
