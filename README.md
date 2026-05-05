@@ -22,17 +22,21 @@ This mirrors a single end-to-end route from `openabdev/openab` (Discord adapter 
 
 ## Installation
 
-Download the latest `.tgz` from [Releases](https://github.com/christinhabibiyanq366/opencd/releases/latest) and install:
+Download the latest `.tgz` from [Releases](https://github.com/christinhabibiyanq366/opencd/releases/latest), then:
 
 ```bash
-npm install ./opencd-<version>.tgz
+# 全局安装（推荐）
+npm install -g ./opencd-<version>.tgz
+opencd
+
+# 或者用 npx 直接运行（无需全局安装）
+npx ./opencd-<version>.tgz
+
+# 也可以直接用 Release URL
+npx https://github.com/christinhabibiyanq366/opencd/releases/download/<tag>/opencd-<version>.tgz
 ```
 
-Or install directly from the release URL:
-
-```bash
-npm install https://github.com/christinhabibiyanq366/opencd/releases/download/<tag>/opencd-<version>.tgz
-```
+运行前需要在当前目录创建 `.env` 文件，参考 [Environment](#environment) 章节。
 
 ## Quick start
 
