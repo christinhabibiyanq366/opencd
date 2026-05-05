@@ -26,14 +26,14 @@ Download the latest `.tgz` from [Releases](https://github.com/christinhabibiyanq
 
 ```bash
 # 全局安装（推荐）
-npm install -g ./opencd-<version>.tgz
+npm install -g ./opencd-0.1.0.tgz
 opencd
 
 # 或者用 npx 直接运行（无需全局安装）
-npx ./opencd-<version>.tgz
+npx ./opencd-0.1.0.tgz
 
 # 也可以直接用 Release URL
-npx https://github.com/christinhabibiyanq366/opencd/releases/download/<tag>/opencd-<version>.tgz
+npx https://github.com/christinhabibiyanq366/opencd/releases/download/v0.1.0-beta.2/opencd-0.1.0.tgz
 ```
 
 运行前需要在当前目录创建 `.env` 文件，参考 [Environment](#environment) 章节。
