@@ -37,11 +37,11 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           MAX_BETA=$(gh release list --repo ${{ github.repository }} --limit 100 --json tagName \
             | node -e "
+                const v = '${VERSION}';
                 const releases = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
                 const nums = releases
-                  .map(r => r.tagName.match(/^v\${VERSION}-beta\.(\d+)$/))
-                  .filter(Boolean)
-                  .map(m => parseInt(m[1], 10));
+                  .map(r => { const m = r.tagName.match(/^v(.+)-beta\.(\d+)$/); return m && m[1]===v ? parseInt(m[2],10) : null; })
+                  .filter(n => n !== null);
                 console.log(nums.length ? Math.max(...nums) : 0);
               ")
           NEXT_BETA=$((MAX_BETA + 1))
