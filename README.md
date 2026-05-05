@@ -33,7 +33,7 @@ opencd
 npx ./opencd-0.1.0.tgz
 
 # 也可以直接用 Release URL
-npx https://github.com/christinhabibiyanq366/opencd/releases/download/v0.1.0-beta.2/opencd-0.1.0.tgz
+npx https://github.com/christinhabibiyanq366/opencd/releases/download/v0.1.0-beta.4/opencd-0.1.0.tgz
 ```
 
 运行前需要在当前目录创建 `.env` 文件，参考 [Environment](#environment) 章节。
