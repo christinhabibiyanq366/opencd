@@ -29,13 +29,29 @@ jobs:
 
       - name: Collect metadata
         id: meta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          TAG="v${VERSION}-${SHORT_SHA}"
+
+          # 查找当前版本已有多少个 beta release，编号 +1
+          BETA_COUNT=$(gh release list --repo ${{ github.repository }} --limit 100 --json tagName \
+            | node -e "
+                const releases = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+                const count = releases.filter(r => r.tagName.startsWith('v${VERSION}-beta.')).length;
+                console.log(count);
+              ")
+          NEXT_BETA=$((BETA_COUNT + 1))
+          TAG="v${VERSION}-beta.${NEXT_BETA}"
+
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "prerelease=true" >> $GITHUB_OUTPUT
+
+          # 如果版本号本身不含 beta/alpha/rc，则稳定版用干净 tag
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag will be: ${TAG} (pre-release)"
+          fi
 
       - name: Pack
         run: npm pack
@@ -44,15 +60,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
-          name: "Release ${{ steps.meta.outputs.tag }}"
+          name: ${{ steps.meta.outputs.tag }}
+          prerelease: true
           body: |
-            Automated release built from commit `${{ github.sha }}`.
+            Pre-release built from commit `${{ github.sha }}`.
 
             ## Install
 
-            Download the `.tgz` file below, then run:
             ```bash
-            npm install ./opencd-${{ steps.meta.outputs.version }}.tgz
+            npx https://github.com/${{ github.repository }}/releases/download/${{ steps.meta.outputs.tag }}/opencd-${{ steps.meta.outputs.version }}.tgz
             ```
           files: "*.tgz"
           generate_release_notes: true
